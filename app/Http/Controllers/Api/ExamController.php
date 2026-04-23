@@ -4,43 +4,121 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
+use App\Models\Timetable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class ExamController extends Controller
 {
     /**
-     * List all exams for authenticated user, sorted by date.
+     * List all exams for authenticated user, including school timetable.
      */
     public function index(Request $request): JsonResponse
     {
-        $exams = $request->user()->exams()
+        $user = $request->user();
+        
+        // Custom user exams
+        $customExams = $user->exams()
             ->where('exam_date', '>=', now())
-            ->orderBy('exam_date', 'asc')
             ->get()
             ->map(function ($exam) {
+                return $this->formatExam($exam, true);
+            });
+
+        // School timetable exams
+        $timetableExams = collect();
+        if ($user->school_id && $user->level) {
+            // Flexible level matching (handles '400' vs '400L')
+            $levelBase = preg_replace('/[^0-9]/', '', $user->level);
+            
+            $timetableExams = Timetable::where('school_id', $user->school_id)
+                ->where(function($q) use ($user, $levelBase) {
+                    $q->where('level', $user->level)
+                      ->orWhere('level', 'like', $levelBase . '%')
+                      ->orWhere('level', 'like', '%' . $levelBase);
+                })
+                ->where('exam_date', '>=', now())
+                ->get()
+                ->map(function ($exam) {
+                    return $this->formatExam($exam, false);
+                });
+        }
+
+        $allExams = $customExams->concat($timetableExams)->sortBy('exam_date')->values();
+
+        return response()->json([
+            'exams' => $allExams,
+            'total_this_semester' => $allExams->count(),
+        ]);
+    }
+
+    private function formatExam($exam, $isCustom)
+    {
+        $date = Carbon::parse($exam->exam_date);
+        $daysLeft = (int) ceil(now()->diffInDays($date, false));
+        
+        return [
+            'id' => $exam->id,
+            'course_code' => $exam->course_code,
+            'course_name' => $exam->course_name,
+            'exam_date' => $date->toIso8601String(),
+            'exam_date_formatted' => $date->format('M d · g:i A'),
+            'venue' => $exam->venue,
+            'days_left' => $daysLeft < 0 ? 0 : $daysLeft,
+            'urgency' => $daysLeft <= 3 ? 'high' : ($daysLeft <= 7 ? 'medium' : 'low'),
+            'is_custom' => $isCustom,
+        ];
+    }
+
+    /**
+     * Get upcoming exams for dashboard (next 2).
+     */
+    public function upcoming(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        
+        $customExams = $user->exams()
+            ->where('exam_date', '>=', now())
+            ->orderBy('exam_date', 'asc')
+            ->limit(2)
+            ->get();
+
+        $timetableExams = collect();
+        if ($user->school_id && $user->level) {
+            $levelBase = preg_replace('/[^0-9]/', '', $user->level);
+            
+            $timetableExams = Timetable::where('school_id', $user->school_id)
+                ->where(function($q) use ($user, $levelBase) {
+                    $q->where('level', $user->level)
+                      ->orWhere('level', 'like', $levelBase . '%')
+                      ->orWhere('level', 'like', '%' . $levelBase);
+                })
+                ->where('exam_date', '>=', now())
+                ->orderBy('exam_date', 'asc')
+                ->limit(2)
+                ->get();
+        }
+
+        $exams = $customExams->concat($timetableExams)
+            ->sortBy('exam_date')
+            ->take(2)
+            ->map(function ($exam) {
+                $date = Carbon::parse($exam->exam_date);
                 return [
                     'id' => $exam->id,
                     'course_code' => $exam->course_code,
-                    'course_name' => $exam->course_name,
-                    'exam_date' => $exam->exam_date->toIso8601String(),
-                    'exam_date_formatted' => $exam->exam_date->format('M d · g:i A'),
-                    'venue' => $exam->venue,
-                    'days_left' => $exam->days_left,
-                    'urgency' => $exam->urgency,
+                    'days_left' => (int) ceil(now()->diffInDays($date, false)),
                 ];
             });
 
-        $totalThisSemester = $request->user()->exams()->count();
-
         return response()->json([
-            'exams' => $exams,
-            'total_this_semester' => $totalThisSemester,
+            'exams' => $exams->values(),
         ]);
     }
 
     /**
-     * Create a new exam.
+     * Create a new custom exam.
      */
     public function store(Request $request): JsonResponse
     {
@@ -55,16 +133,7 @@ class ExamController extends Controller
 
         return response()->json([
             'message' => 'Exam added successfully',
-            'exam' => [
-                'id' => $exam->id,
-                'course_code' => $exam->course_code,
-                'course_name' => $exam->course_name,
-                'exam_date' => $exam->exam_date->toIso8601String(),
-                'exam_date_formatted' => $exam->exam_date->format('M d · g:i A'),
-                'venue' => $exam->venue,
-                'days_left' => $exam->days_left,
-                'urgency' => $exam->urgency,
-            ],
+            'exam' => $this->formatExam($exam, true),
         ], 201);
     }
 
@@ -85,20 +154,10 @@ class ExamController extends Controller
         ]);
 
         $exam->update($validated);
-        $exam = $exam->fresh();
 
         return response()->json([
             'message' => 'Exam updated successfully',
-            'exam' => [
-                'id' => $exam->id,
-                'course_code' => $exam->course_code,
-                'course_name' => $exam->course_name,
-                'exam_date' => $exam->exam_date->toIso8601String(),
-                'exam_date_formatted' => $exam->exam_date->format('M d · g:i A'),
-                'venue' => $exam->venue,
-                'days_left' => $exam->days_left,
-                'urgency' => $exam->urgency,
-            ],
+            'exam' => $this->formatExam($exam->fresh(), true),
         ]);
     }
 
@@ -115,29 +174,6 @@ class ExamController extends Controller
 
         return response()->json([
             'message' => 'Exam deleted successfully',
-        ]);
-    }
-
-    /**
-     * Get upcoming exams for dashboard (next 2).
-     */
-    public function upcoming(Request $request): JsonResponse
-    {
-        $exams = $request->user()->exams()
-            ->where('exam_date', '>=', now())
-            ->orderBy('exam_date', 'asc')
-            ->limit(2)
-            ->get()
-            ->map(function ($exam) {
-                return [
-                    'id' => $exam->id,
-                    'course_code' => $exam->course_code,
-                    'days_left' => $exam->days_left,
-                ];
-            });
-
-        return response()->json([
-            'exams' => $exams,
         ]);
     }
 }

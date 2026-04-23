@@ -25,6 +25,8 @@ class User extends Authenticatable
         'username',
         'email',
         'password',
+        'school_id',
+        'level',
     ];
 
     /**
@@ -72,5 +74,13 @@ class User extends Authenticatable
     public function chatMessages(): HasMany
     {
         return $this->hasMany(ChatMessage::class);
+    }
+
+    /**
+     * Get the school for the user.
+     */
+    public function school(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(School::class);
     }
 }

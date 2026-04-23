@@ -22,6 +22,8 @@ class AuthController extends Controller
             'username' => 'required|string|max:50|unique:users',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'school_id' => 'nullable|exists:schools,id',
+            'level' => 'nullable|string|max:50',
         ]);
 
         $user = User::create([
@@ -29,6 +31,8 @@ class AuthController extends Controller
             'username' => $validated['username'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
+            'school_id' => $validated['school_id'] ?? null,
+            'level' => $validated['level'] ?? null,
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -40,6 +44,8 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'username' => $user->username,
                 'email' => $user->email,
+                'school_id' => $user->school_id,
+                'level' => $user->level,
             ],
             'token' => $token,
         ], 201);
@@ -71,6 +77,8 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'username' => $user->username,
                 'email' => $user->email,
+                'school_id' => $user->school_id,
+                'level' => $user->level,
             ],
             'token' => $token,
         ]);
@@ -99,7 +107,19 @@ class AuthController extends Controller
                 'name' => $request->user()->name,
                 'username' => $request->user()->username,
                 'email' => $request->user()->email,
+                'school_id' => $request->user()->school_id,
+                'level' => $request->user()->level,
             ],
+        ]);
+    }
+
+    /**
+     * Get list of schools.
+     */
+    public function schools(): JsonResponse
+    {
+        return response()->json([
+            'schools' => \App\Models\School::all(['id', 'name', 'short_name']),
         ]);
     }
 }
