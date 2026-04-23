@@ -79,6 +79,8 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'school_id' => $user->school_id,
                 'level' => $user->level,
+                'cgpa' => $user->cgpa,
+                'profile_picture' => $user->profile_picture,
             ],
             'token' => $token,
         ]);
@@ -101,14 +103,17 @@ class AuthController extends Controller
      */
     public function user(Request $request): JsonResponse
     {
+        $user = $request->user();
         return response()->json([
             'user' => [
-                'id' => $request->user()->id,
-                'name' => $request->user()->name,
-                'username' => $request->user()->username,
-                'email' => $request->user()->email,
-                'school_id' => $request->user()->school_id,
-                'level' => $request->user()->level,
+                'id' => $user->id,
+                'name' => $user->name,
+                'username' => $user->username,
+                'email' => $user->email,
+                'school_id' => $user->school_id,
+                'level' => $user->level,
+                'cgpa' => $user->cgpa,
+                'profile_picture' => $user->profile_picture,
             ],
         ]);
     }
@@ -120,6 +125,37 @@ class AuthController extends Controller
     {
         return response()->json([
             'schools' => \App\Models\School::all(['id', 'name', 'short_name']),
+        ]);
+    }
+
+    /**
+     * Update user profile.
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'username' => 'sometimes|string|max:50|unique:users,username,' . $user->id,
+            'level' => 'sometimes|string|max:50',
+            'cgpa' => 'sometimes|numeric|between:0,5.00',
+        ]);
+
+        $user->update($validated);
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'username' => $user->username,
+                'email' => $user->email,
+                'school_id' => $user->school_id,
+                'level' => $user->level,
+                'cgpa' => $user->cgpa,
+                'profile_picture' => $user->profile_picture,
+            ],
         ]);
     }
 }

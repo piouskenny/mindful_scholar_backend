@@ -22,4 +22,12 @@ Route::middleware(['admin'])->prefix('admin')->group(function () {
     Route::post('/schools', [AdminController::class, 'storeSchool'])->name('admin.schools.store');
     Route::get('/timetables', [AdminController::class, 'timetables'])->name('admin.timetables');
     Route::post('/timetables', [AdminController::class, 'storeTimetable'])->name('admin.timetables.store');
+    
+    // Affirmations
+    Route::get('/affirmations', [AdminController::class, 'affirmations'])->name('admin.affirmations');
+    Route::post('/affirmations', [AdminController::class, 'storeAffirmation'])->name('admin.affirmations.store');
+
+    // Notifications
+    Route::get('/notifications', [AdminController::class, 'notifications'])->name('admin.notifications');
+    Route::post('/notifications', [AdminController::class, 'storeNotification'])->name('admin.notifications.store');
 });

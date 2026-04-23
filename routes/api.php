@@ -24,6 +24,7 @@ Route::get('/schools', [AuthController::class, 'schools']);
 Route::middleware('auth:sanctum')->group(function () {
     // User profile
     Route::get('/user', [AuthController::class, 'user']);
+    Route::post('/user/update', [AuthController::class, 'updateProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     // Tasks
@@ -42,4 +43,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/chat/history', [ChatController::class, 'history']);
     Route::post('/chat/send', [ChatController::class, 'send']);
     Route::post('/chat/clear', [ChatController::class, 'clear']);
+
+    // Utilities
+    Route::get('/daily-affirmation', [\App\Http\Controllers\Api\UtilityController::class, 'dailyAffirmation']);
+    Route::get('/notifications', [\App\Http\Controllers\Api\UtilityController::class, 'notifications']);
 });

@@ -27,6 +27,8 @@ class User extends Authenticatable
         'password',
         'school_id',
         'level',
+        'cgpa',
+        'profile_picture',
     ];
 
     /**

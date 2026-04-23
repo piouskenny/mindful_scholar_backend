@@ -18,6 +18,8 @@
                 <a href="{{ route('admin.dashboard') }}" class="block px-4 py-2.5 rounded-lg transition hover:bg-white/10 @if(request()->routeIs('admin.dashboard')) bg-white/10 @endif">Dashboard</a>
                 <a href="{{ route('admin.schools') }}" class="block px-4 py-2.5 rounded-lg transition hover:bg-white/10 @if(request()->routeIs('admin.schools')) bg-white/10 @endif">Manage Schools</a>
                 <a href="{{ route('admin.timetables') }}" class="block px-4 py-2.5 rounded-lg transition hover:bg-white/10 @if(request()->routeIs('admin.timetables')) bg-white/10 @endif">Timetables</a>
+                <a href="{{ route('admin.affirmations') }}" class="block px-4 py-2.5 rounded-lg transition hover:bg-white/10 @if(request()->routeIs('admin.affirmations')) bg-white/10 @endif">Affirmations</a>
+                <a href="{{ route('admin.notifications') }}" class="block px-4 py-2.5 rounded-lg transition hover:bg-white/10 @if(request()->routeIs('admin.notifications')) bg-white/10 @endif">Notifications</a>
             </nav>
         </div>
 
