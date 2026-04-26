@@ -35,19 +35,16 @@ class AuthController extends Controller
             'level' => $validated['level'] ?? null,
         ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $otpCode = rand(100000, 999999);
+        \App\Models\Otp::updateOrCreate(
+            ['email' => $validated['email']],
+            ['otp' => $otpCode, 'expires_at' => now()->addMinutes(10)]
+        );
+        \Illuminate\Support\Facades\Mail::to($validated['email'])->send(new \App\Mail\OtpMail($otpCode));
 
         return response()->json([
-            'message' => 'Account created successfully',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'username' => $user->username,
-                'email' => $user->email,
-                'school_id' => $user->school_id,
-                'level' => $user->level,
-            ],
-            'token' => $token,
+            'message' => 'Account created successfully. Please check your email for the OTP.',
+            'email' => $user->email,
         ], 201);
     }
 
@@ -68,6 +65,14 @@ class AuthController extends Controller
         }
 
         $user = User::where('email', $request->email)->firstOrFail();
+
+        if (is_null($user->email_verified_at)) {
+            return response()->json([
+                'message' => 'Please verify your email address before logging in.',
+                'email_not_verified' => true,
+            ], 403);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -95,6 +100,83 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Logged out successfully',
+        ]);
+    }
+
+    /**
+     * Verify OTP and login user.
+     */
+    public function verifyOtp(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+            'otp' => 'required|string',
+        ]);
+
+        $otpRecord = \App\Models\Otp::where('email', $request->email)->first();
+
+        if (!$otpRecord || $otpRecord->otp !== $request->otp) {
+            throw ValidationException::withMessages([
+                'otp' => ['The provided OTP is incorrect.'],
+            ]);
+        }
+
+        if (now()->greaterThan($otpRecord->expires_at)) {
+            throw ValidationException::withMessages([
+                'otp' => ['The provided OTP has expired.'],
+            ]);
+        }
+
+        $user = User::where('email', $request->email)->firstOrFail();
+        $user->email_verified_at = now();
+        $user->save();
+
+        $otpRecord->delete();
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Email verified successfully. You are now logged in.',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'username' => $user->username,
+                'email' => $user->email,
+                'school_id' => $user->school_id,
+                'level' => $user->level,
+                'cgpa' => $user->cgpa,
+                'profile_picture' => $user->profile_picture,
+            ],
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Resend OTP.
+     */
+    public function resendOtp(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+        ]);
+
+        $user = User::where('email', $request->email)->firstOrFail();
+
+        if ($user->email_verified_at) {
+            return response()->json([
+                'message' => 'Email is already verified.',
+            ], 400);
+        }
+
+        $otpCode = rand(100000, 999999);
+        \App\Models\Otp::updateOrCreate(
+            ['email' => $request->email],
+            ['otp' => $otpCode, 'expires_at' => now()->addMinutes(10)]
+        );
+        \Illuminate\Support\Facades\Mail::to($request->email)->send(new \App\Mail\OtpMail($otpCode));
+
+        return response()->json([
+            'message' => 'A new OTP has been sent to your email.',
         ]);
     }
 
@@ -157,5 +239,37 @@ class AuthController extends Controller
                 'profile_picture' => $user->profile_picture,
             ],
         ]);
+    }
+
+    /**
+     * Upload profile picture.
+     */
+    public function uploadProfilePicture(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5120',
+        ]);
+
+        $user = $request->user();
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('profile_pictures', 'public');
+            
+            // Optionally delete old picture
+            // if ($user->profile_picture) {
+            //     Storage::disk('public')->delete($user->profile_picture);
+            // }
+
+            $user->profile_picture = $path;
+            $user->save();
+
+            return response()->json([
+                'message' => 'Profile picture uploaded successfully',
+                'profile_picture' => $path,
+                'url' => asset('storage/' . $path),
+            ]);
+        }
+
+        return response()->json(['message' => 'No image uploaded'], 400);
     }
 }
