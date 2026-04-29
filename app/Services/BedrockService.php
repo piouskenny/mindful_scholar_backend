@@ -47,16 +47,17 @@ class BedrockService
             $messages = $this->buildMessages($chatHistory, $userMessage);
 
             $response = \Illuminate\Support\Facades\Http::post($url, [
+                'message' => $userMessage,
                 'system_prompt' => $systemPrompt,
-                'messages' => $messages,
-                'user_message' => $userMessage, // Optional, depending on what the Lambda expects
+                'history' => $messages, // Renaming messages to history to avoid confusion if Lambda expects 'message' as input
             ]);
 
             if ($response->successful()) {
                 $result = $response->json();
-                // Adjust this based on your Lambda's actual response structure
-                // Assuming it returns {'response': '...'} or similar
-                return $result['response'] ?? $result['message'] ?? $result['content'][0]['text'] ?? 'No response received from AI.';
+                Log::info('Bedrock API Response:', ['result' => $result]);
+                
+                // Check multiple possible response keys (including 'reply' as confirmed by user)
+                return $result['reply'] ?? $result['response'] ?? $result['message'] ?? $result['bot_message'] ?? $result['content'][0]['text'] ?? 'No response received from AI.';
             }
 
             Log::error('Bedrock API Gateway Error: ' . $response->status() . ' - ' . $response->body());
