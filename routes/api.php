@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\ChatbotController;
 use App\Http\Controllers\Api\ExamController;
 use App\Http\Controllers\Api\TaskController;
 use Illuminate\Support\Facades\Route;
@@ -46,6 +47,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/chat/history', [ChatController::class, 'history']);
     Route::post('/chat/send', [ChatController::class, 'send']);
     Route::post('/chat/clear', [ChatController::class, 'clear']);
+
+    // Chatbot (New)
+    Route::get('/chatbot/history', [ChatbotController::class, 'getHistory']);
+    Route::post('/chatbot/send', [ChatbotController::class, 'sendMessage']);
+    Route::post('/chatbot/clear', [ChatbotController::class, 'clearHistory']);
 
     // Utilities
     Route::get('/daily-affirmation', [\App\Http\Controllers\Api\UtilityController::class, 'dailyAffirmation']);

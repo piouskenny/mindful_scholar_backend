@@ -26,7 +26,7 @@ class BedrockService
     }
 
     /**
-     * Send a message to AWS Bedrock and get AI response.
+     * Send a message to AWS Bedrock via API Gateway and get AI response.
      *
      * @param string $userMessage The user's message
      * @param array $context Additional context (tasks, exams, etc.)
@@ -36,32 +36,34 @@ class BedrockService
     public function chat(string $userMessage, array $context = [], array $chatHistory = []): string
     {
         try {
+            $url = env('BEDROCK_CHAT_URL');
+            
+            if (!$url) {
+                Log::warning('BEDROCK_CHAT_URL not set in .env');
+                return $this->getFallbackResponse($userMessage);
+            }
+
             $systemPrompt = $this->buildSystemPrompt($context);
             $messages = $this->buildMessages($chatHistory, $userMessage);
 
-            $modelId = env('AWS_BEDROCK_MODEL', 'anthropic.claude-3-sonnet-20240229-v1:0');
-
-            $body = [
-                'anthropic_version' => 'bedrock-2023-05-31',
-                'max_tokens' => 1024,
-                'system' => $systemPrompt,
+            $response = \Illuminate\Support\Facades\Http::post($url, [
+                'system_prompt' => $systemPrompt,
                 'messages' => $messages,
-            ];
-
-            $response = $this->getClient()->invokeModel([
-                'modelId' => $modelId,
-                'contentType' => 'application/json',
-                'accept' => 'application/json',
-                'body' => json_encode($body),
+                'user_message' => $userMessage, // Optional, depending on what the Lambda expects
             ]);
 
-            $result = json_decode($response['body']->getContents(), true);
+            if ($response->successful()) {
+                $result = $response->json();
+                // Adjust this based on your Lambda's actual response structure
+                // Assuming it returns {'response': '...'} or similar
+                return $result['response'] ?? $result['message'] ?? $result['content'][0]['text'] ?? 'No response received from AI.';
+            }
 
-            return $result['content'][0]['text'] ?? 'I apologize, but I could not generate a response. Please try again.';
+            Log::error('Bedrock API Gateway Error: ' . $response->status() . ' - ' . $response->body());
+            return $this->getFallbackResponse($userMessage);
+
         } catch (\Exception $e) {
-            Log::error('Bedrock API Error: ' . $e->getMessage());
-
-            // Return a helpful fallback response
+            Log::error('Bedrock Service Exception: ' . $e->getMessage());
             return $this->getFallbackResponse($userMessage);
         }
     }
