@@ -34,6 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Tasks
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::get('/tasks/today', [TaskController::class, 'today']);
+    Route::get('/tasks/upcoming-deadlines', [TaskController::class, 'upcomingDeadlines']);
     Route::post('/tasks', [TaskController::class, 'store']);
     Route::patch('/tasks/{task}/toggle', [TaskController::class, 'toggle']);
     Route::apiResource('tasks', TaskController::class)->except(['index', 'store']);

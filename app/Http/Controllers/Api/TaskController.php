@@ -25,6 +25,15 @@ class TaskController extends Controller
             }
         }
 
+        // Filter by task type
+        if ($request->has('task_type') && $request->task_type !== 'all') {
+            if ($request->task_type === 'school') {
+                $query->whereIn('task_type', ['assignment', 'reading', 'project']);
+            } else {
+                $query->where('task_type', $request->task_type);
+            }
+        }
+
         $tasks = $query->get();
         $totalCount = $request->user()->tasks()->count();
         $completedCount = $request->user()->tasks()->where('is_completed', true)->count();
@@ -42,17 +51,18 @@ class TaskController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'course_code' => 'nullable|string|max:50',
-            'priority' => 'required|in:high,medium,low',
-            'due_date' => 'required|date',
+            'title'      => 'required|string|max:255',
+            'task_type'  => 'required|in:assignment,reading,fun,project,other',
+            'course_code'=> 'nullable|string|max:50',
+            'priority'   => 'required|in:high,medium,low',
+            'due_date'   => 'required|date',
         ]);
 
         $task = $request->user()->tasks()->create($validated);
 
         return response()->json([
             'message' => 'Task created successfully',
-            'task' => $task,
+            'task'    => $task,
         ], 201);
     }
 
@@ -67,10 +77,11 @@ class TaskController extends Controller
         }
 
         $validated = $request->validate([
-            'title' => 'sometimes|string|max:255',
-            'course_code' => 'nullable|string|max:50',
-            'priority' => 'sometimes|in:high,medium,low',
-            'due_date' => 'sometimes|date',
+            'title'        => 'sometimes|string|max:255',
+            'task_type'    => 'sometimes|in:assignment,reading,fun,project,other',
+            'course_code'  => 'nullable|string|max:50',
+            'priority'     => 'sometimes|in:high,medium,low',
+            'due_date'     => 'sometimes|date',
             'is_completed' => 'sometimes|boolean',
         ]);
 
@@ -78,7 +89,7 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task updated successfully',
-            'task' => $task->fresh(),
+            'task'    => $task->fresh(),
         ]);
     }
 
@@ -111,7 +122,7 @@ class TaskController extends Controller
 
         return response()->json([
             'message' => 'Task status toggled',
-            'task' => $task->fresh(),
+            'task'    => $task->fresh(),
         ]);
     }
 
@@ -123,9 +134,29 @@ class TaskController extends Controller
         $tasks = $request->user()->tasks()
             ->where('due_date', '<=', now()->addDay()->toDateString())
             ->orderBy('is_completed', 'asc')
+            ->orderByRaw("CASE task_type WHEN 'assignment' THEN 0 WHEN 'reading' THEN 1 WHEN 'project' THEN 2 ELSE 3 END")
             ->orderBy('due_date', 'asc')
             ->limit(5)
             ->get();
+
+        return response()->json([
+            'tasks' => $tasks,
+        ]);
+    }
+
+    /**
+     * Get tasks with deadlines within the next 48 hours (for notification scheduling).
+     */
+    public function upcomingDeadlines(Request $request): JsonResponse
+    {
+        $tasks = $request->user()->tasks()
+            ->where('is_completed', false)
+            ->whereBetween('due_date', [
+                now()->toDateString(),
+                now()->addHours(48)->toDateString(),
+            ])
+            ->orderBy('due_date', 'asc')
+            ->get(['id', 'title', 'task_type', 'due_date', 'priority']);
 
         return response()->json([
             'tasks' => $tasks,
